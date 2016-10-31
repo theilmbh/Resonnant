@@ -1,7 +1,13 @@
 import pandas as pd
 import numpy as np
+from neuraltda import SimplicialComplex as sc 
+from neuraltda import topology as tp 
 
-def brian2ephys(brianTrials, stims, trialLen, iti, fs):
+def runBrian():
+
+	pass
+
+def brian2ephys(brianResults):
 	''' Converts Brian2 spikemonitor output over multiple trials to ephys-analysis format
 
 	Parameters
@@ -17,6 +23,13 @@ def brian2ephys(brianTrials, stims, trialLen, iti, fs):
 	fs : int 
 		fictious sampling rate
 	'''
+
+	brianTrials = brianResults['brianTrials']
+	stims = brianResults['stims']
+	nClusters = brianResults['nClusters']
+	trialLen = brianResults['trialLen']
+	iti = brianResults['iti']
+	fs = brianResults['fs']
 
 	ntrials = len(brianTrials)
 	trialStarts = np.zeros(ntrials)
@@ -34,4 +47,30 @@ def brian2ephys(brianTrials, stims, trialLen, iti, fs):
 	trials = pd.DataFrame({'stimulus': stims,
 		                   'time_samples': trialStarts,
 		                   'stimulus_end': trialStarts + np.round(trialLen*fs)})
-	return (spikes, trials)
+
+	clusters = pd.DataFrame({'cluster': np.arange(nClusters), 'quality': nClusters*['Good'] })
+	ephysDict = {'spikes': spikes, 'trials': trials, 'clusters': clusters, 'fs': fs}
+	return ephysDict
+
+def ephys2binned(ephysDict, binParams):
+
+	spikes = ephysDict['spikes']
+	trials = ephysDict['trials']
+	clusters = ephysDict['clusters']
+	fs = ephysDict['fs']
+
+	windt = binParams['windt']
+	period = binParams['period']
+	ncellsperm = binParams['ncellsperm']
+	nperms = binParams['nperms']
+	nshuffs = binParams['nshuffs']
+
+	bfdict = tp.do_dag_bin('./',spikes, trials, clusters, fs, windt, {'period': 1}, ncellsperm, nperms, nshuffs)
+	return bfdict
+
+def brian2SimplicialComplex(brianResults, binParams):
+	
+	ephysDict = brian2ephys(brianResults)
+	bfdict = ephys2binned(ephysDict, binParams)
+	bfold = bfdict['permuted']
+	 
