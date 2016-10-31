@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 import h5py as h5 
+import os
+import glob
+from tqdm import tqdm
 from neuraltda import SimplicialComplex as sc 
 from neuraltda import topology as tp 
 
@@ -19,6 +22,8 @@ def brian2ephys(brianResults):
 		list of stimuli names for each trial (length: ntrials)
 	trialLen : float 
 		Duration of a trial 
+	nCluster : int 
+		Number of neurons
 	iti : float 
 		Inter trial interval to space trials apart in dataFrames
 	fs : int 
@@ -129,12 +134,12 @@ def brian2SimplicialComplex(brianResults, binParams, thresh):
 	bfdict = ephys2binned(ephysDict, binParams)
 	bfold = bfdict['permuted']
 
-	with open(bfold, 'r') as f:
-		binnedData = h5py.File(f)
-		simpcomplist = []
-		for stim in binnedData.keys():
-			dataIDstr = stim 
-			b2SCRecursive(binnedData[stim], dataIDstr, thresh, simpcomplist)
+	binnedFile = glob.glob(os.path.join(bfold, '*.binned'))[0]
+	binnedData = h5.File(binnedFile)
+	simpcomplist = []
+	for stim in tqdm(binnedData.keys()):
+		dataIDstr = stim 
+		b2SCRecursive(binnedData[stim], dataIDstr, thresh, simpcomplist)
 
 	return simpcomplist
 
