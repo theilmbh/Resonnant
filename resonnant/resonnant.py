@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import h5py as h5 
 from neuraltda import SimplicialComplex as sc 
 from neuraltda import topology as tp 
 
@@ -10,7 +11,7 @@ def runBrian():
 def brian2ephys(brianResults):
 	''' Converts Brian2 spikemonitor output over multiple trials to ephys-analysis format
 
-	Parameters
+	Contents of brianResults
 	----------
 	brianTrials : list
 		list of brian2 spikemon objects, each element corresponding to each trial 
@@ -53,6 +54,9 @@ def brian2ephys(brianResults):
 	return ephysDict
 
 def ephys2binned(ephysDict, binParams):
+	'''
+	Takes an ephysDict and bins it 
+	'''
 
 	spikes = ephysDict['spikes']
 	trials = ephysDict['trials']
@@ -64,13 +68,75 @@ def ephys2binned(ephysDict, binParams):
 	ncellsperm = binParams['ncellsperm']
 	nperms = binParams['nperms']
 	nshuffs = binParams['nshuffs']
+	blockPath = binParams['blockPath']
 
-	bfdict = tp.do_dag_bin('./',spikes, trials, clusters, fs, windt, {'period': 1}, ncellsperm, nperms, nshuffs)
+	bfdict = tp.do_dag_bin(blockPath, spikes, trials, clusters, fs, windt, period, ncellsperm, nperms, nshuffs)
 	return bfdict
 
-def brian2SimplicialComplex(brianResults, binParams):
+def b2SCRecursive(dataGroup, dataIDstr, thresh, simpcomplist):
+	if 'pop_vec' in dataGroup.keys():
+		binaryMat = sc.binnedtobinary(dataGroup['pop_vec'], thresh)
+		maxSimplices = sc.BinaryToMaxSimplex(binaryMat)
+		simpcomp = sc.SimplicialComplex(maxSimplices, name=dataIDstr)
+		simpcomplist.append(simpcomp)
+		
+	else:
+		for ind, perm in enumerate(dataGroup.keys()):
+			dataIDstr = dataIDstr +'-%s' % perm 
+			b2SCRecursive(dataGroup[perm], dataIDstr, thresh, simpcomplist)
+	return
+
+def brian2SimplicialComplex(brianResults, binParams, thresh):
+	'''
+	Takes the results of a brian simulaton, bins it, and 
+	creates simplicial complexes from the binned data
+
+	Contents of brianResults
+	----------
+	brianTrials : list
+		list of brian2 spikemon objects, each element corresponding to each trial 
+	stims : list
+		list of stimuli names for each trial (length: ntrials)
+	trialLen : float 
+		Duration of a trial 
+	iti : float 
+		Inter trial interval to space trials apart in dataFrames
+	fs : int 
+		fictious sampling rate
+
+	Contents of binParams
+	---------------------
+	windt : float 
+		window length in ms 
+	period : dict 
+		stimulus period dictionary {'period': 1}
+	ncellsperm : int 
+		number of cells in permutation 
+	nperms : int 
+		number of permutations 
+	nshuffs : int 
+		number of shuffles 
+	blockPath : str 
+		path to block for storing data 
+
+	Parameters 
+	----------
+	thresh : float 
+		multiple of avg firing rate to include in cell group 
+	'''
 	
 	ephysDict = brian2ephys(brianResults)
 	bfdict = ephys2binned(ephysDict, binParams)
 	bfold = bfdict['permuted']
+
+	with open(bfold, 'r') as f:
+		binnedData = h5py.File(f)
+		simpcomplist = []
+		for stim in binnedData.keys():
+			dataIDstr = stim 
+			b2SCRecursive(binnedData[stim], dataIDstr, thresh, simpcomplist)
+
+	return simpcomplist
+
+
 	 
