@@ -82,8 +82,11 @@ def b2SCRecursive(dataGroup, dataIDstr, thresh, simpcomplist):
 	if 'pop_vec' in dataGroup.keys():
 		binaryMat = sc.binnedtobinary(dataGroup['pop_vec'], thresh)
 		maxSimplices = sc.BinaryToMaxSimplex(binaryMat)
-		simpcomp = sc.SimplicialComplex(maxSimplices, name=dataIDstr)
-		simpcomplist.append(simpcomp)
+		if not maxSimplices:
+			simpcomplist.append([])
+		else:
+			simpcomp = sc.SimplicialComplex(maxSimplices, name=dataIDstr)
+			simpcomplist.append(simpcomp)
 		
 	else:
 		for ind, perm in enumerate(dataGroup.keys()):
@@ -91,7 +94,7 @@ def b2SCRecursive(dataGroup, dataIDstr, thresh, simpcomplist):
 			b2SCRecursive(dataGroup[perm], dataIDstr, thresh, simpcomplist)
 	return
 
-def brian2SimplicialComplex(brianResults, binParams, thresh):
+def brian2SimplicialComplex(brianResults, binParams, thresh, computationClass):
 	'''
 	Takes the results of a brian simulaton, bins it, and 
 	creates simplicial complexes from the binned data
@@ -132,7 +135,7 @@ def brian2SimplicialComplex(brianResults, binParams, thresh):
 	
 	ephysDict = brian2ephys(brianResults)
 	bfdict = ephys2binned(ephysDict, binParams)
-	bfold = bfdict['permuted']
+	bfold = bfdict[computationClass]
 
 	binnedFile = glob.glob(os.path.join(bfold, '*.binned'))[0]
 	binnedData = h5.File(binnedFile)
@@ -143,5 +146,14 @@ def brian2SimplicialComplex(brianResults, binParams, thresh):
 
 	return simpcomplist
 
+def computeRenyiDivergence(sclist, targetDensity, dimension, beta):
+	'''
+	Computes renyi divergences between the simp comps in sclist 
+	against the target density matrices.
+	'''
+	RD = np.zeros(len(sclist))
+	for ind, sc in tqdm(enumerate(sclist)):
+		sc.computeDensityMatrix(dimension, beta)
+		RD[ind] = sc.computeRD(dimension, beta, targetDensity)
 
-	 
+	return RD 
